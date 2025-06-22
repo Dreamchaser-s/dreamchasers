@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<body>
+
+<div th:fragment="commentBody(comment)">
+    <div class="comment">
+        <div class="comment-author">
+            <img th:if="${comment.author != null and comment.author.profileImage != null}" th:src="@{|/uploads/${comment.author.profileImage}|}" class="comment-avatar" alt="profile">
+            <th:block th:if="${comment.author == null or comment.author.profileImage == null}">
+                <i data-feather="user-check" th:if="${comment.parent == null}"></i>
+                <i data-feather="corner-down-right" th:if="${comment.parent != null}"></i>
+            </th:block>
+            <strong th:text="${comment.author?.nickname}"></strong>
+            <time th:text="${#temporals.format(comment.createDate, 'yyyy-MM-dd HH:mm')}"></time>
+        </div>
+        <div class="comment-content" th:text="${comment.content}"></div>
+        <div class="comment-actions">
+            <a href="javascript:void(0);" th:onclick="|showReplyForm(this, ${comment.id})|" sec:authorize="isAuthenticated()">답글</a>
+            <a href="javascript:void(0);" th:data-uri="@{|/comment/delete/${comment.id}|}" class="delete small" sec:authorize="isAuthenticated()" th:if="${comment.author?.username == #authentication.name or #authorization.expression('hasRole(''ADMIN'')')}">삭제</a>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

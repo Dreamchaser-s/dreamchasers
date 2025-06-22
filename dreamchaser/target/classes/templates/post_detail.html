@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="|${post.title} - Tech Log|"></title>
+    <link rel="stylesheet" type="text/css" th:href="@{/css/style.css}">
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+</head>
+<body>
+<nav class="navbar" th:replace="~{main :: navbar}"></nav>
+
+<div class="main-layout">
+    <aside th:replace="~{fragments/_sidebar :: sidebarFragment}"></aside>
+    <main class="main-content">
+        <div class="container">
+            <div class="detail-container" th:object="${post}">
+                <div class="detail-header">
+                    <div class="detail-category"><a th:href="@{/post/list/by_category(category=*{category.name()})}" th:text="*{category.displayName}"></a></div>
+                    <h1 class="detail-title" th:text="*{title}"></h1>
+                    <p class="detail-summary" th:text="*{summary}"></p>
+                    <div class="detail-rating" th:text="${'★'.repeat(post.starRating)} + ${'☆'.repeat(5 - post.starRating)}"></div>
+                </div>
+                <div class="detail-meta">
+                    <span><i data-feather="user"></i> <span th:text="*{author?.nickname}"></span></span>
+                    <span><i data-feather="calendar"></i> <span th:text="${#temporals.format(post.createDate, 'yyyy-MM-dd')}"></span></span>
+                    <span><i data-feather="eye"></i> <span th:text="*{viewCount}"></span></span>
+                </div>
+                <div class="detail-image" th:if="*{imageUrl != null and !imageUrl.isEmpty()}"><img th:src="@{|/uploads/*{imageUrl}|}" alt="대표 이미지"></div>
+                <div class="pros-cons-grid">
+                    <div class="pros-box">
+                        <p>👍 Pros</p> <div th:each="item : ${post.pros}"> <p class="pre-wrap-text" th:text="${item}"></p>
+                    </div>
+                    </div>
+                    <div class="cons-box">
+                        <p>👎 Cons</p> <div th:each="item : ${post.cons}"> <p class="pre-wrap-text" th:text="${item}"></p>
+                    </div>
+                    </div>
+                </div>
+                <div class="detail-content" th:utext="*{content}"></div>
+                <div class="detail-actions">
+                    <a sec:authorize="isAuthenticated()" href="javascript:void(0);" th:data-uri="@{|/post/vote/${post.id}|}" class="recommend btn"><i data-feather="heart"></i> 추천 <span th:text="${#lists.size(post.voter)}"></span></a>
+                    <a th:href="@{|/post/modify/${post.id}|}" class="btn btn-secondary" sec:authorize="isAuthenticated()" th:if="${post.author?.username == #authentication.name}">수정</a>
+                    <a href="javascript:void(0);" th:data-uri="@{|/post/delete/${post.id}|}" class="delete btn btn-danger" sec:authorize="isAuthenticated()" th:if="${post.author?.username == #authentication.name or #authorization.expression('hasRole(''ADMIN'')')}">삭제</a>
+                </div>
+                <hr class="divider">
+
+                <div class="comment-section">
+                    <h3 th:text="|댓글 (${#lists.size(post.commentList)})|"></h3>
+                    <form class="comment-form" th:action="@{|/comment/create/${post.id}|}" method="post" sec:authorize="isAuthenticated()" th:if="${#lists.size(post.commentList) < 50}" th:object="${commentForm}">
+                        <textarea name="content" rows="3" placeholder="가이드라인을 위반한 글은 경고없이 삭제됩니다." th:field="*{content}"></textarea>
+                        <div th:if="${#fields.hasErrors('content')}" class="alert-danger" th:errors="*{content}"></div>
+                        <input type="hidden" name="parentId" th:if="${commentForm != null}" th:value="*{parentId}">
+                        <div class="comment-form-actions" style="text-align: right; margin-top: 0.5rem;"><button type="submit" class="btn">댓글 등록</button></div>
+                    </form>
+                    <div class="alert-warning" th:if="${#lists.size(post.commentList) >= 50}">댓글 개수가 50개를 초과하여 더 이상 댓글을 작성할 수 없습니다.</div>
+
+                    <div th:if="${errorMessage}" class="alert-danger" th:text="${errorMessage}"></div>
+
+                    <hr class="divider" th:if="${!post.commentList.isEmpty()}" style="margin: 2rem 0;">
+                    <div class="comment-list">
+                        <div th:each="comment : ${post.commentList}" th:if="${comment.parent == null}">
+                            <div th:replace="~{fragments/comment_fragment :: commentFragment(comment=${comment})}"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div id="reply-form-template" style="display: none;">
+    <form th:action="@{|/comment/create/${post.id}|}" method="post" class="comment-form reply-form" th:object="${commentForm}">
+        <input type="hidden" name="parentId" value="">
+        <textarea name="content" rows="3" placeholder="답글을 남겨주세요." th:field="*{content}"></textarea>
+        <div th:if="${#fields.hasErrors('content')}" class="alert-danger" th:errors="*{content}"></div>
+        <div class="reply-form-actions">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="cancelReply(this)">취소</button>
+            <button type="submit" class="btn btn-sm">등록</button>
+        </div>
+    </form>
+</div>
+
+<script type='text/javascript'>
+    document.addEventListener('click', function(event) {
+        const deleteTarget = event.target.closest('.delete');
+        if (deleteTarget) {
+            if(confirm("정말로 삭제하시겠습니까?")) {
+                location.href = deleteTarget.dataset.uri;
+            }
+        }
+        const recommendTarget = event.target.closest('.recommend');
+        if (recommendTarget) {
+            if(confirm("이 글을 추천하시겠습니까?")) {
+                location.href = recommendTarget.dataset.uri;
+            }
+        }
+    });
+
+    let currentReplyForm = null;
+    function showReplyForm(buttonElement, parentId) {
+        const formTemplate = document.getElementById('reply-form-template');
+        if (!formTemplate) return;
+        const newForm = formTemplate.cloneNode(true);
+        newForm.style.display = 'block';
+        newForm.removeAttribute('id');
+        newForm.querySelector('input[name="parentId"]').value = parentId;
+
+        // 답글 폼에 이전 에러 메시지가 남아있지 않도록 제거
+        const existingErrorDiv = newForm.querySelector('.alert-danger');
+        if (existingErrorDiv) {
+            existingErrorDiv.remove();
+        }
+
+        if (currentReplyForm && currentReplyForm.parentNode) {
+            currentReplyForm.parentNode.removeChild(currentReplyForm);
+        }
+        const commentThread = buttonElement.closest('.comment-thread, .reply, .comment');
+        if (commentThread) {
+            commentThread.appendChild(newForm);
+        }
+        currentReplyForm = newForm;
+        newForm.querySelector('textarea[name="content"]').focus(); // 새로 생성된 폼의 textarea에 포커스
+    }
+
+    function cancelReply(cancelButton) {
+        const formWrapper = cancelButton.closest('.comment-form.reply-form'); // closest()를 사용하여 정확한 폼 요소 찾기
+        if (formWrapper && formWrapper.parentNode) {
+            formWrapper.parentNode.removeChild(formWrapper);
+        }
+        currentReplyForm = null;
+    }
+
+    try {
+        feather.replace();
+    } catch (e) {
+        console.error("Feather Icons failed to load.", e);
+    }
+</script>
+
+</body>
+</html>
